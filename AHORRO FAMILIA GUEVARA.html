@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Ahorro Familiar</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f5f7fa;
+      position: relative;
+    }
+
+    /* Marca de agua */
+    body::before {
+      content: "creado by elkin";
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-30deg);
+      font-size: 28px;
+      color: rgba(0,0,0,0.03);
+      z-index: -1;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: auto;
+      background: white;
+      padding: 25px;
+      border-radius: 10px;
+      box-shadow: 0 0 12px rgba(0,0,0,0.1);
+      position: relative;
+      z-index: 1;
+    }
+
+    h1, h2, h3 { color: #2c3e50; }
+    input, button, select, textarea { padding: 10px; margin: 6px 0; width: 100%; max-width: 300px; }
+    textarea { height: 60px; resize: vertical; }
+    button { background: #3498db; color: white; border: none; cursor: pointer; border-radius: 5px; }
+    button:hover { background: #2980b9; }
+    .btn-danger { background: #e74c3c; }
+    .btn-danger:hover { background: #c0392b; }
+    .btn-warning { background: #f39c12; }
+    .btn-warning:hover { background: #d35400; }
+    .btn-success { background: #2ecc71; }
+    .btn-success:hover { background: #27ae60; }
+    .btn-purple { background: #9b59b6; }
+    .btn-purple:hover { background: #8e44ad; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    th, td { border: 1px solid #ccc; padding: 10px; text-align: center; }
+    .form-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .form-row > * { flex: 1; min-width: 150px; }
+    .hidden { display: none; }
+    .msg { padding: 8px; margin: 10px 0; border-radius: 4px; }
+    .success { background: #d4edda; color: #155724; }
+    .error { background: #f8d7da; color: #721c24; }
+    nav { margin-bottom: 20px; }
+    nav button { width: auto; margin-right: 10px; }
+    .export-buttons { margin: 15px 0; }
+    .export-buttons button { max-width: 180px; }
+    .acciones { white-space: nowrap; }
+    .saldo-disponible { font-size: 1.4em; font-weight: bold; color: #27ae60; margin: 15px 0; }
+    .gasto-item { background: #fef9e7; padding: 8px; margin: 5px 0; border-radius: 4px; }
+    .alerta-atraso { background: #fff3cd; color: #856404; padding: 10px; border-radius: 5px; margin: 10px 0; }
+    /* Estilo para selección múltiple de meses */
+    #mesesReferencia {
+      height: auto;
+      max-height: 120px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Pantalla de Login -->
+  <div id="loginScreen" class="container">
+    <h1>🔐 Inicio de Sesión</h1>
+    <div class="form-group">
+      <input type="text" id="loginUser" placeholder="Usuario (ej. admin)" />
+      <input type="password" id="loginPass" placeholder="Contraseña" />
+      <button onclick="login()">Ingresar</button>
+    </div>
+    <div id="loginMsg"></div>
+
+    <hr style="margin: 25px 0;" />
+    <h2>👤 Consulta tu Estado de Cuenta</h2>
+    <p>Ingresa tu nombre para ver tus aportes y saldo actual:</p>
+    <input type="text" id="consultaNombre" placeholder="Tu nombre completo" />
+    <button onclick="consultaPublica()">Consultar</button>
+    <div id="consultaResultado"></div>
+  </div>
+
+  <!-- Panel Administrador -->
+  <div id="adminPanel" class="container hidden">
+    <nav>
+      <button onclick="showSection('dashboard')">Inicio</button>
+      <button onclick="showSection('gestionMiembros')">Gestión de Integrantes</button>
+      <button onclick="showSection('registroAporte')">Registrar Aporte</button>
+      <button onclick="showSection('busqueda')">Buscar Integrante</button>
+      <button onclick="showSection('resumenMensual')">Resumen Mensual</button>
+      <button onclick="showSection('calculos')">🧮 Cálculos (Ahorro - Gastos)</button>
+      <button onclick="showSection('configuracion')">Configuración</button>
+      <button onclick="logout()">Cerrar Sesión</button>
+    </nav>
+
+    <!-- Dashboard -->
+    <div id="dashboard" class="section">
+      <h1>🏠 Panel de Administración</h1>
+      <p>Bienvenido, administrador. Usa el menú para gestionar ahorros familiares.</p>
+      <div id="alertasDashboard"></div>
+    </div>
+
+    <!-- Gestión de Integrantes -->
+    <div id="gestionMiembros" class="section hidden">
+      <h2>👥 Gestión de Integrantes</h2>
+      <div id="listaMiembros"></div>
+      <h3>➕ Añadir Nuevo Integrante</h3>
+      <input type="text" id="nuevoMiembro" placeholder="Nombre completo" />
+      <button onclick="agregarMiembro()">Agregar</button>
+      <div id="msgGestion"></div>
+    </div>
+
+    <!-- Registro de Aporte -->
+    <div id="registroAporte" class="section hidden">
+      <h2>📥 Registrar Aporte</h2>
+      <div class="form-row">
+        <select id="miembroAporte"></select>
+        <input type="date" id="fechaAporte" />
+        <select id="metodoPago">
+          <option value="efectivo">Efectivo</option>
+          <option value="transferencia">Transferencia</option>
+        </select>
+      </div>
+      <input type="number" id="montoAporte" placeholder="Monto total (ej. 80000)" min="1" />
+      <label><strong>Selecciona el(los) mes(es) al(los) que aplica este aporte:</strong></label>
+      <select id="mesesReferencia" multiple>
+        <!-- Se llenará dinámicamente -->
+      </select>
+      <textarea id="observaciones" placeholder="Observaciones (opcional)"></textarea>
+      <button onclick="registrarAporte()">Registrar Aporte</button>
+      <div id="msgAporte"></div>
+    </div>
+
+    <!-- Búsqueda por Integrante -->
+    <div id="busqueda" class="section hidden">
+      <h2>🔍 Buscar Integrante</h2>
+      <input type="text" id="busquedaNombre" placeholder="Nombre del integrante" />
+      <button onclick="buscarIntegrante()">Buscar</button>
+      <div id="resultadoBusqueda"></div>
+    </div>
+
+    <!-- Resumen Mensual -->
+    <div id="resumenMensual" class="section hidden">
+      <h2>📊 Resumen General Mensual</h2>
+      <div class="form-row">
+        <input type="month" id="mesResumen" />
+        <button onclick="generarResumenMensual()">Generar Resumen</button>
+      </div>
+      <div class="export-buttons">
+        <button class="btn-success" onclick="exportarResumenPDF()">📥 Exportar a PDF</button>
+        <button class="btn-success" onclick="exportarResumenExcel()">📊 Exportar a Excel</button>
+      </div>
+      <div id="tablaResumenContenedor"></div>
+    </div>
+
+    <!-- Cálculos: Ahorro - Gastos -->
+    <div id="calculos" class="section hidden">
+      <h2>🧮 Cálculos: Ahorro vs Gastos</h2>
+      <p>Controla cuánto dinero queda después de cada gasto.</p>
+
+      <h3>Selecciona período para calcular ahorro:</h3>
+      <div class="form-row">
+        <select id="periodoCalculo">
+          <option value="todo">Todo el historial</option>
+          <option value="mes">Mes actual</option>
+        </select>
+        <input type="month" id="mesCalculo" />
+      </div>
+
+      <div class="saldo-disponible" id="saldoCalculo">Saldo: $0</div>
+
+      <h3>➕ Registrar Gasto</h3>
+      <input type="number" id="montoGasto" placeholder="Monto del gasto" min="1" />
+      <textarea id="descripcionGasto" placeholder="Descripción del gasto (ej. mercado, fiesta, etc.)"></textarea>
+      <button class="btn-purple" onclick="registrarGasto()">Registrar Gasto</button>
+
+      <h3>Historial de Gastos</h3>
+      <div id="listaGastos"></div>
+    </div>
+
+    <!-- Configuración -->
+    <div id="configuracion" class="section hidden">
+      <h2>⚙️ Configuración</h2>
+      <h3>Cambiar Contraseña</h3>
+      <input type="password" id="nuevaPass1" placeholder="Nueva contraseña" />
+      <input type="password" id="nuevaPass2" placeholder="Repetir nueva contraseña" />
+      <button class="btn-success" onclick="cambiarContrasena()">Guardar Nueva Contraseña</button>
+      <div id="msgConfig"></div>
+    </div>
+  </div>
+
+  <!-- Librerías externas -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <script>
+    // Configuración
+    const USUARIO_ADMIN = "admin";
+    if (!localStorage.getItem('contrasenaAdmin')) {
+      localStorage.setItem('contrasenaAdmin', "1234");
+    }
+
+    let familia = JSON.parse(localStorage.getItem('familia')) || [];
+    let aportes = JSON.parse(localStorage.getItem('aportes')) || [];
+    let gastos = JSON.parse(localStorage.getItem('gastos')) || [];
+
+    // Obtener mes actual en formato "YYYY-MM"
+    function getMesActual() {
+      const hoy = new Date();
+      return hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0');
+    }
+
+    // Generar lista de meses (6 meses atrás + 12 meses adelante)
+    function generarOpcionesMeses() {
+      const select = document.getElementById('mesesReferencia');
+      if (!select) return;
+      select.innerHTML = '';
+      const hoy = new Date();
+      const inicio = new Date(hoy.getFullYear(), hoy.getMonth() - 6, 1);
+      const fin = new Date(hoy.getFullYear(), hoy.getMonth() + 12, 1);
+
+      for (let d = new Date(inicio); d <= fin; d.setMonth(d.getMonth() + 1)) {
+        const mes = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+        const option = document.createElement('option');
+        option.value = mes;
+        // Formato legible: "Octubre 2025"
+        const mesNombre = new Date(d.getFullYear(), d.getMonth(), 1).toLocaleString('es-CO', { month: 'long', year: 'numeric' });
+        option.textContent = mesNombre.charAt(0).toUpperCase() + mesNombre.slice(1);
+        select.appendChild(option);
+      }
+    }
+
+    // Login
+    function login() {
+      const user = document.getElementById('loginUser').value.trim();
+      const pass = document.getElementById('loginPass').value;
+      const msg = document.getElementById('loginMsg');
+      const passGuardada = localStorage.getItem('contrasenaAdmin');
+
+      if (user === USUARIO_ADMIN && pass === passGuardada) {
+        document.getElementById('loginScreen').classList.add('hidden');
+        document.getElementById('adminPanel').classList.remove('hidden');
+        cargarMiembros();
+        listarMiembros();
+        listarGastos();
+        actualizarSaldo();
+        mostrarAlertasAtraso();
+        generarOpcionesMeses();
+        showSection('dashboard');
+      } else {
+        msg.className = 'msg error';
+        msg.textContent = 'Usuario o contraseña incorrectos.';
+      }
+    }
+
+    function logout() {
+      document.getElementById('adminPanel').classList.add('hidden');
+      document.getElementById('loginScreen').classList.remove('hidden');
+      document.getElementById('loginUser').value = '';
+      document.getElementById('loginPass').value = '';
+    }
+
+    function showSection(id) {
+      document.querySelectorAll('.section').forEach(el => el.classList.add('hidden'));
+      document.getElementById(id).classList.remove('hidden');
+      if (id === 'calculos') {
+        actualizarSaldo();
+      } else if (id === 'dashboard') {
+        mostrarAlertasAtraso();
+      } else if (id === 'registroAporte') {
+        // Asegurar que los meses estén cargados
+        if (document.getElementById('mesesReferencia').innerHTML === '') {
+          generarOpcionesMeses();
+        }
+        // Seleccionar mes actual por defecto
+        const mesActual = getMesActual();
+        const select = document.getElementById('mesesReferencia');
+        for (let opt of select.options) {
+          opt.selected = (opt.value === mesActual);
+        }
+      }
+    }
+
+    // Cargar miembros en selects
+    function cargarMiembros() {
+      const sel = document.getElementById('miembroAporte');
+      if (!sel) return;
+      sel.innerHTML = '';
+      familia.forEach((nombre, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = nombre;
+        sel.appendChild(opt);
+      });
+    }
+
+    // Listar miembros
+    function listarMiembros() {
+      let html = '<h3>Integrantes registrados:</h3><ul>';
+      if (familia.length === 0) {
+        html += '<li>No hay integrantes registrados.</li>';
+      } else {
+        familia.forEach((nombre, i) => {
+          html += `
+            <li>
+              <strong>${nombre}</strong>
+              <span class="acciones">
+                <button class="btn-warning" onclick="editarMiembro(${i})">✏️ Editar</button>
+                <button class="btn-danger" onclick="eliminarMiembro(${i})">🗑️ Eliminar</button>
+              </span>
+            </li>`;
+        });
+      }
+      html += '</ul>';
+      document.getElementById('listaMiembros').innerHTML = html;
+    }
+
+    // Agregar miembro
+    function agregarMiembro() {
+      const nombre = document.getElementById('nuevoMiembro').value.trim();
+      const msg = document.getElementById('msgGestion');
+      if (!nombre) {
+        msg.className = 'msg error'; msg.textContent = 'Ingresa un nombre.';
+        return;
+      }
+      if (familia.includes(nombre)) {
+        msg.className = 'msg error'; msg.textContent = 'Ya existe este integrante.';
+        return;
+      }
+      familia.push(nombre);
+      localStorage.setItem('familia', JSON.stringify(familia));
+      msg.className = 'msg success'; msg.textContent = 'Integrante agregado.';
+      document.getElementById('nuevoMiembro').value = '';
+      listarMiembros();
+      cargarMiembros();
+    }
+
+    // Editar miembro
+    function editarMiembro(index) {
+      const antiguo = familia[index];
+      const nuevoNombre = prompt('Edita el nombre del integrante:', antiguo);
+      if (nuevoNombre === null) return;
+      const nombreTrim = nuevoNombre.trim();
+      if (!nombreTrim) {
+        alert('El nombre no puede estar vacío.');
+        return;
+      }
+      if (familia.includes(nombreTrim) && nombreTrim !== antiguo) {
+        alert('Ya existe un integrante con ese nombre.');
+        return;
+      }
+      familia[index] = nombreTrim;
+      aportes.forEach(a => {
+        if (a.miembro === antiguo) a.miembro = nombreTrim;
+      });
+      localStorage.setItem('familia', JSON.stringify(familia));
+      localStorage.setItem('aportes', JSON.stringify(aportes));
+      listarMiembros();
+      cargarMiembros();
+      alert('Nombre actualizado.');
+    }
+
+    // Eliminar miembro
+    function eliminarMiembro(index) {
+      if (!confirm(`¿Seguro que deseas eliminar a "${familia[index]}" y todos sus aportes?`)) return;
+      const nombre = familia[index];
+      familia.splice(index, 1);
+      aportes = aportes.filter(a => a.miembro !== nombre);
+      localStorage.setItem('familia', JSON.stringify(familia));
+      localStorage.setItem('aportes', JSON.stringify(aportes));
+      listarMiembros();
+      cargarMiembros();
+      alert('Integrante eliminado.');
+    }
+
+    // Registrar aporte (con distribución por meses)
+    function registrarAporte() {
+      const idx = document.getElementById('miembroAporte').value;
+      const fechaPago = document.getElementById('fechaAporte').value;
+      const metodo = document.getElementById('metodoPago').value;
+      const montoTotal = parseFloat(document.getElementById('montoAporte').value);
+      const obs = document.getElementById('observaciones').value.trim();
+      const selectMeses = document.getElementById('mesesReferencia');
+      const msg = document.getElementById('msgAporte');
+
+      // Validar
+      if (idx === '' || !fechaPago || isNaN(montoTotal) || montoTotal <= 0) {
+        msg.className = 'msg error'; msg.textContent = 'Completa los campos obligatorios.';
+        return;
+      }
+
+      const mesesSeleccionados = Array.from(selectMeses.selectedOptions).map(opt => opt.value);
+      if (mesesSeleccionados.length === 0) {
+        msg.className = 'msg error'; msg.textContent = 'Selecciona al menos un mes.';
+        return;
+      }
+
+      // Calcular monto por mes (distribución equitativa)
+      const montoPorMes = montoTotal / mesesSeleccionados.length;
+
+      // Crear un aporte por cada mes
+      mesesSeleccionados.forEach(mes => {
+        aportes.push({
+          miembro: familia[idx],
+          fechaPago: fechaPago,
+          mesReferencia: mes,
+          monto: Math.round(montoPorMes), // redondear para evitar decimales
+          metodo: metodo,
+          observaciones: obs || ''
+        });
+      });
+
+      // Ajustar el último aporte para compensar redondeo
+      const totalAsignado = Math.round(montoPorMes) * mesesSeleccionados.length;
+      const diferencia = montoTotal - totalAsignado;
+      if (diferencia !== 0 && aportes.length > 0) {
+        aportes[aportes.length - 1].monto += diferencia;
+      }
+
+      localStorage.setItem('aportes', JSON.stringify(aportes));
+      msg.className = 'msg success'; msg.textContent = `Aporte registrado y distribuido en ${mesesSeleccionados.length} mes(es).`;
+      document.getElementById('montoAporte').value = '';
+      document.getElementById('observaciones').value = '';
+      document.getElementById('fechaAporte').valueAsDate = new Date();
+      // Mantener la selección de meses o resetear
+      const mesActual = getMesActual();
+      for (let opt of selectMeses.options) {
+        opt.selected = (opt.value === mesActual);
+      }
+    }
+
+    // Función para agrupar aportes por mes de referencia
+    function agruparPorMes(aportesLista) {
+      const grupos = {};
+      aportesLista.forEach(a => {
+        const mes = a.mesReferencia;
+        if (!grupos[mes]) grupos[mes] = [];
+        grupos[mes].push(a);
+      });
+      return grupos;
+    }
+
+    // Buscar integrante
+    function buscarIntegrante() {
+      const nombre = document.getElementById('busquedaNombre').value.trim();
+      const contenedor = document.getElementById('resultadoBusqueda');
+      if (!nombre) {
+        contenedor.innerHTML = '<p class="msg error">Ingresa un nombre.</p>';
+        return;
+      }
+
+      const aportesPersona = aportes.filter(a => a.miembro === nombre);
+      if (aportesPersona.length === 0) {
+        contenedor.innerHTML = `<p>No hay aportes registrados para ${nombre}.</p>`;
+        return;
+      }
+
+      const grupos = agruparPorMes(aportesPersona);
+      let html = `<h3>Estado de ${nombre}</h3>`;
+
+      // Alerta si está atrasado en el mes actual
+      const mesActual = getMesActual();
+      const hoy = new Date();
+      const dia = hoy.getDate();
+      const aportesMesActual = grupos[mesActual] || [];
+      const totalMesActual = aportesMesActual.reduce((sum, a) => sum + a.monto, 0);
+      const meta = 40000;
+      const pendiente = Math.max(0, meta - totalMesActual);
+      const estado = totalMesActual >= meta ? '✅ Completo' : '⏳ Pendiente';
+
+      if (dia >= 25 && totalMesActual < meta) {
+        html += `<div class="alerta-atraso">⚠️ ¡ATENCIÓN! Hoy es ${dia} y aún faltan $${pendiente.toLocaleString('es-CO')} para completar el aporte de ${mesActual}.</div>`;
+      }
+
+      html += `<p><strong>Meta mensual:</strong> $40.000</p>`;
+      html += `<p><strong>Estado actual (${mesActual}):</strong> ${estado} (Total: $${totalMesActual.toLocaleString('es-CO')})</p>`;
+
+      // Mostrar historial por mes (ordenado del más reciente al más antiguo)
+      const mesesOrdenados = Object.keys(grupos).sort().reverse();
+      html += `<h4>Historial de aportes (por mes de referencia):</h4>`;
+      mesesOrdenados.forEach(mes => {
+        const aportesMes = grupos[mes];
+        const total = aportesMes.reduce((sum, a) => sum + a.monto, 0);
+        const estadoMes = total >= 40000 ? '✅' : '⏳';
+        html += `<h5>${mes} — Total: $${total.toLocaleString('es-CO')} ${estadoMes}</h5>`;
+        html += `<table><thead><tr><th>Fecha Pago</th><th>Monto</th><th>Método</th><th>Obs.</th><th>Acción</th></tr></thead><tbody>`;
+        // También ordenar los aportes dentro del mes por fecha (más reciente primero)
+        const aportesOrdenados = [...aportesMes].sort((a, b) => new Date(b.fechaPago) - new Date(a.fechaPago));
+        aportesOrdenados.forEach((a, i) => {
+          let globalIndex = -1;
+          for (let j = 0; j < aportes.length; j++) {
+            const ap = aportes[j];
+            if (
+              ap.miembro === a.miembro &&
+              ap.fechaPago === a.fechaPago &&
+              ap.mesReferencia === a.mesReferencia &&
+              ap.monto === a.monto &&
+              ap.metodo === a.metodo &&
+              ap.observaciones === a.observaciones
+            ) {
+              let yaUsado = false;
+              for (let k = 0; k < i; k++) {
+                const prev = aportesOrdenados[k];
+                if (
+                  prev.miembro === ap.miembro &&
+                  prev.fechaPago === ap.fechaPago &&
+                  prev.mesReferencia === ap.mesReferencia &&
+                  prev.monto === ap.monto &&
+                  prev.metodo === ap.metodo &&
+                  prev.observaciones === ap.observaciones
+                ) {
+                  yaUsado = true;
+                  break;
+                }
+              }
+              if (!yaUsado) {
+                globalIndex = j;
+                break;
+              }
+            }
+          }
+
+          html += `
+            <tr>
+              <td>${a.fechaPago}</td>
+              <td>$${a.monto.toLocaleString('es-CO')}</td>
+              <td>${a.metodo}</td>
+              <td>${a.observaciones || '-'}</td>
+              <td><button class="btn-danger" onclick="eliminarAporte(${globalIndex})">Eliminar</button></td>
+            </tr>`;
+        });
+        html += `</tbody></table><br>`;
+      });
+
+      contenedor.innerHTML = html;
+    }
+
+    function eliminarAporte(index) {
+      if (index < 0 || index >= aportes.length) return;
+      if (!confirm('¿Seguro que deseas eliminar este aporte?')) return;
+      aportes.splice(index, 1);
+      localStorage.setItem('aportes', JSON.stringify(aportes));
+      buscarIntegrante();
+      alert('Aporte eliminado.');
+    }
+
+    // Consulta pública
+    function consultaPublica() {
+      const nombre = document.getElementById('consultaNombre').value.trim();
+      const contenedor = document.getElementById('consultaResultado');
+      if (!nombre) {
+        contenedor.innerHTML = '<p class="msg error">Ingresa tu nombre.</p>';
+        return;
+      }
+
+      const aportesPersona = aportes.filter(a => a.miembro === nombre);
+      if (aportesPersona.length === 0) {
+        contenedor.innerHTML = `<p>No hay aportes registrados para ${nombre}.</p>`;
+        return;
+      }
+
+      const grupos = agruparPorMes(aportesPersona);
+      const mesActual = getMesActual();
+      const hoy = new Date();
+      const dia = hoy.getDate();
+      const aportesMesActual = grupos[mesActual] || [];
+      const totalMesActual = aportesMesActual.reduce((sum, a) => sum + a.monto, 0);
+      const meta = 40000;
+      const pendiente = Math.max(0, meta - totalMesActual);
+      const estado = totalMesActual >= meta ? '✅ Completo' : '⏳ Pendiente';
+
+      let html = `<div class="msg success"><h3>Estado de Cuenta: ${nombre}</h3>`;
+
+      if (dia >= 25 && totalMesActual < meta) {
+        html += `<div class="alerta-atraso">⚠️ ¡ATENCIÓN! Hoy es ${dia} y aún faltan $${pendiente.toLocaleString('es-CO')} para completar el aporte de ${mesActual}.</div>`;
+      }
+
+      html += `<p><strong>Meta mensual:</strong> $40.000</p>`;
+      html += `<p><strong>Estado actual (${mesActual}):</strong> ${estado} (Total: $${totalMesActual.toLocaleString('es-CO')})</p>`;
+
+      // Mostrar historial por mes (más reciente primero)
+      const mesesOrdenados = Object.keys(grupos).sort().reverse();
+      html += `<h4>Historial de aportes (por mes de referencia):</h4>`;
+      mesesOrdenados.forEach(mes => {
+        const total = grupos[mes].reduce((sum, a) => sum + a.monto, 0);
+        const estadoMes = total >= 40000 ? '✅' : '⏳';
+        html += `<p><strong>${mes}:</strong> $${total.toLocaleString('es-CO')} ${estadoMes}</p>`;
+      });
+
+      html += `</div>`;
+      contenedor.innerHTML = html;
+    }
+
+    // Mostrar alertas en dashboard
+    function mostrarAlertasAtraso() {
+      const mesActual = getMesActual();
+      const hoy = new Date();
+      const dia = hoy.getDate();
+      if (dia < 25) {
+        document.getElementById('alertasDashboard').innerHTML = '<p>📅 Hoy es ' + dia + '. Las alertas de cumplimiento se activan a partir del día 25.</p>';
+        return;
+      }
+
+      const atrasados = [];
+      familia.forEach(miembro => {
+        const aportesMes = aportes.filter(a => a.miembro === miembro && a.mesReferencia === mesActual);
+        const total = aportesMes.reduce((sum, a) => sum + a.monto, 0);
+        if (total < 40000) {
+          atrasados.push({ nombre: miembro, faltante: 40000 - total });
+        }
+      });
+
+      let html = '<h3>🚨 Alertas de Cumplimiento (' + mesActual + ')</h3>';
+      if (atrasados.length === 0) {
+        html += '<p>✅ ¡Todos los integrantes han cumplido con su aporte este mes!</p>';
+      } else {
+        html += `<p>Hoy es ${dia}. Los siguientes integrantes no han completado su aporte:</p><ul>`;
+        atrasados.forEach(a => {
+          html += `<li><strong>${a.nombre}</strong> — Faltan $${a.faltante.toLocaleString('es-CO')}</li>`;
+        });
+        html += '</ul>';
+      }
+      document.getElementById('alertasDashboard').innerHTML = html;
+    }
+
+    // Cambiar contraseña
+    function cambiarContrasena() {
+      const p1 = document.getElementById('nuevaPass1').value;
+      const p2 = document.getElementById('nuevaPass2').value;
+      const msg = document.getElementById('msgConfig');
+
+      if (p1 !== p2) {
+        msg.className = 'msg error';
+        msg.textContent = 'Las contraseñas no coinciden.';
+        return;
+      }
+      if (p1.length < 4) {
+        msg.className = 'msg error';
+        msg.textContent = 'La contraseña debe tener al menos 4 caracteres.';
+        return;
+      }
+
+      localStorage.setItem('contrasenaAdmin', p1);
+      msg.className = 'msg success';
+      msg.textContent = 'Contraseña actualizada correctamente.';
+      document.getElementById('nuevaPass1').value = '';
+      document.getElementById('nuevaPass2').value = '';
+    }
+
+    // Resumen mensual
+    function generarResumenMensual() {
+      const mesInput = document.getElementById('mesResumen').value;
+      if (!mesInput) {
+        alert('Selecciona un mes.');
+        return;
+      }
+
+      const aportesMes = aportes.filter(a => a.mesReferencia === mesInput);
+      if (aportesMes.length === 0) {
+        document.getElementById('tablaResumenContenedor').innerHTML = '<p>No hay aportes para este mes.</p>';
+        return;
+      }
+
+      const grupos = {};
+      aportesMes.forEach(a => {
+        if (!grupos[a.miembro]) grupos[a.miembro] = [];
+        grupos[a.miembro].push(a);
+      });
+
+      let html = `<h3>Resumen detallado de ${mesInput}</h3>`;
+      Object.keys(grupos).forEach(miembro => {
+        const aportesList = grupos[miembro];
+        const total = aportesList.reduce((sum, a) => sum + a.monto, 0);
+        const estado = total >= 40000 ? '✅' : '⏳';
+        html += `<h4>${miembro} — Total: $${total.toLocaleString('es-CO')} ${estado}</h4>`;
+        html += `<table><thead><tr><th>Fecha Pago</th><th>Monto</th><th>Método</th><th>Observaciones</th></tr></thead><tbody>`;
+        // Ordenar aportes por fecha (más reciente primero)
+        const aportesOrdenados = [...aportesList].sort((a, b) => new Date(b.fechaPago) - new Date(a.fechaPago));
+        aportesOrdenados.forEach(a => {
+          html += `
+            <tr>
+              <td>${a.fechaPago}</td>
+              <td>$${a.monto.toLocaleString('es-CO')}</td>
+              <td>${a.metodo}</td>
+              <td>${a.observaciones || '-'}</td>
+            </tr>`;
+        });
+        html += `</tbody></table><br>`;
+      });
+
+      const totalGeneral = aportesMes.reduce((sum, a) => sum + a.monto, 0);
+      html += `<div style="font-weight:bold; font-size:1.2em; color:#27ae60;">
+        TOTAL RECAUDADO EN ${mesInput}: $${totalGeneral.toLocaleString('es-CO')}
+      </div>`;
+
+      document.getElementById('tablaResumenContenedor').innerHTML = html;
+    }
+
+    // Exportar a PDF
+    async function exportarResumenPDF() {
+      const contenedor = document.getElementById('tablaResumenContenedor');
+      if (!contenedor.innerHTML.trim()) { alert('Genera el resumen primero.'); return; }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.setFontSize(16);
+      doc.text(`Resumen de Ahorro Familiar - ${document.getElementById('mesResumen').value}`, 14, 20);
+
+      const canvas = await html2canvas(contenedor);
+      const imgData = canvas.toDataURL('image/png');
+      const imgWidth = 190;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      doc.addImage(imgData, 'PNG', 10, 30, imgWidth, imgHeight);
+      doc.save(`resumen_ahorro_${document.getElementById('mesResumen').value}.pdf`);
+    }
+
+    // Exportar a Excel
+    function exportarResumenExcel() {
+      const contenedor = document.getElementById('tablaResumenContenedor');
+      if (!contenedor.innerHTML.trim()) { alert('Genera el resumen primero.'); return; }
+
+      const tempTable = document.createElement('table');
+      const mes = document.getElementById('mesResumen').value;
+      const aportesMes = aportes.filter(a => a.mesReferencia === mes);
+      if (aportesMes.length === 0) return;
+
+      let html = '<thead><tr><th>Integrante</th><th>Fecha Pago</th><th>Mes Ref.</th><th>Monto</th><th>Método</th><th>Observaciones</th></tr></thead><tbody>';
+      // Ordenar también para Excel
+      const aportesOrdenados = [...aportesMes].sort((a, b) => new Date(b.fechaPago) - new Date(a.fechaPago));
+      aportesOrdenados.forEach(a => {
+        html += `<tr><td>${a.miembro}</td><td>${a.fechaPago}</td><td>${a.mesReferencia}</td><td>${a.monto}</td><td>${a.metodo}</td><td>${a.observaciones || ''}</td></tr>`;
+      });
+      html += '</tbody>';
+      tempTable.innerHTML = html;
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.table_to_sheet(tempTable);
+      XLSX.utils.book_append_sheet(wb, ws, "Resumen Detallado");
+      XLSX.writeFile(wb, `resumen_ahorro_${mes}.xlsx`);
+    }
+
+    // === Cálculos (Ahorro - Gastos) ===
+    function actualizarSaldo() {
+      const periodo = document.getElementById('periodoCalculo').value;
+      const mes = document.getElementById('mesCalculo').value;
+      let totalAhorro = 0;
+
+      if (periodo === 'todo') {
+        totalAhorro = aportes.reduce((sum, a) => sum + a.monto, 0);
+      } else if (periodo === 'mes' && mes) {
+        totalAhorro = aportes.filter(a => a.mesReferencia === mes).reduce((sum, a) => sum + a.monto, 0);
+      } else if (periodo === 'mes') {
+        totalAhorro = aportes.filter(a => a.mesReferencia === getMesActual()).reduce((sum, a) => sum + a.monto, 0);
+      }
+
+      const totalGastos = gastos.reduce((sum, g) => sum + g.monto, 0);
+      const saldo = totalAhorro - totalGastos;
+
+      document.getElementById('saldoCalculo').textContent = `Saldo: $${saldo.toLocaleString('es-CO')}`;
+      document.getElementById('saldoCalculo').style.color = saldo >= 0 ? '#27ae60' : '#e74c3c';
+    }
+
+    function registrarGasto() {
+      const monto = parseFloat(document.getElementById('montoGasto').value);
+      const desc = document.getElementById('descripcionGasto').value.trim();
+
+      if (isNaN(monto) || monto <= 0) {
+        alert('Ingresa un monto válido.');
+        return;
+      }
+
+      const nuevoGasto = {
+        fecha: new Date().toISOString().split('T')[0],
+        monto: monto,
+        descripcion: desc || 'Sin descripción'
+      };
+
+      gastos.push(nuevoGasto);
+      localStorage.setItem('gastos', JSON.stringify(gastos));
+      document.getElementById('montoGasto').value = '';
+      document.getElementById('descripcionGasto').value = '';
+      listarGastos();
+      actualizarSaldo();
+      alert('Gasto registrado.');
+    }
+
+    function listarGastos() {
+      const cont = document.getElementById('listaGastos');
+      if (gastos.length === 0) {
+        cont.innerHTML = '<p>No hay gastos registrados.</p>';
+        return;
+      }
+
+      let html = '';
+      // Mostrar del más reciente al más antiguo
+      gastos.slice().reverse().forEach((g, i) => {
+        html += `
+          <div class="gasto-item">
+            <strong>$${g.monto.toLocaleString('es-CO')}</strong> — ${g.descripcion}
+            <br><small>${g.fecha}</small>
+            <button class="btn-danger" style="margin-left:10px; padding:4px 8px;" 
+              onclick="eliminarGasto(${gastos.length - 1 - i})">Eliminar</button>
+          </div>`;
+      });
+      cont.innerHTML = html;
+    }
+
+    function eliminarGasto(indexReversed) {
+      const index = gastos.length - 1 - indexReversed;
+      if (!confirm('¿Eliminar este gasto?')) return;
+      gastos.splice(index, 1);
+      localStorage.setItem('gastos', JSON.stringify(gastos));
+      listarGastos();
+      actualizarSaldo();
+    }
+
+    // Inicializar
+    const hoy = new Date();
+    document.getElementById('fechaAporte').valueAsDate = hoy;
+    // Cargar opciones de meses al inicio
+    if (document.getElementById('mesesReferencia')) {
+      generarOpcionesMeses();
+    }
+    document.getElementById('mesResumen').value = getMesActual();
+    document.getElementById('mesCalculo').value = getMesActual();
+  </script>
+</body>
+</html>
